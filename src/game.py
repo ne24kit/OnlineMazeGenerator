@@ -1,7 +1,7 @@
 import pygame
 from pathlib import PurePath
 from time import time
-from src.maze import Maze, Cell, conv_ind
+from .maze import Maze, Cell, conv_ind
 
 
 class Globals():
@@ -61,17 +61,14 @@ class MazeBonuses(pygame.sprite.Sprite):
     def update(self, player, maze):
         if self.rect.colliderect(player.rect) and self.type == "speed_up":
             player.speed *= 1.3
-            print(f"{player.speed=}")
             self.kill()
         if self.rect.colliderect(player.rect) and self.type == "speed_down":
             player.speed *= 0.7
-            print(f"{player.speed=}")
             self.kill()
         if self.rect.colliderect(player.rect) and self.type == "teleport":
             x, y = maze.get_random_cell()
             player.rect.x = x * Globals.CELL_SIZE
             player.rect.y = y * Globals.CELL_SIZE
-            print(f"{x=} {y=}")
             self.kill()
 
 
@@ -209,7 +206,6 @@ class Player(pygame.sprite.Sprite):
                     
                     Globals.COUNT_DESTROYED_WALLS[self.num] += 1 
                     Globals.DESTROYED_WALLS = [wall.rect.x, wall.rect.y]
-                    print(Globals.DESTROYED_WALLS)
                     wall.kill()
                 
         if (self.rect.colliderect(end_cell.rect) and 
@@ -323,7 +319,4 @@ def start_game(alg, width, height, filename,
         
         pygame.display.flip() 
         clock.tick(60)
-
-
-    
     

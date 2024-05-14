@@ -1,6 +1,6 @@
 import random
 from time import strftime
-from src.solve import astar
+from .solve import astar
 
 
 def conv_ind(value):
