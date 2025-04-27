@@ -1,7 +1,7 @@
 import argparse
 from .game import start_game
 from .network_utils import start_client, start_server 
-from .maze import start_generator, alg_DFS, alg_Prim
+from .maze import start_generator, alg_DFS, alg_Prim, alg_DFS_parallel
 
 class RangeError(Exception):
     pass
@@ -29,6 +29,7 @@ def check(value):
 def define_alg(func):
     def wrapper(*args, **kwargs):
         algs = {"DFS": alg_DFS,
+                "DFS_parallel": alg_DFS_parallel,
                 "Prim": alg_Prim}
         args[0].algorithm = algs[args[0].algorithm]
         return func(*args, **kwargs)
@@ -79,7 +80,7 @@ def parse_maze_settings(parser):
     parser.add_argument(
         "-a", "--algorithm", 
         help="Select the generation algorithm", 
-        type=str, choices=['DFS', 'Prim'], default='DFS')
+        type=str, choices=['DFS', 'Prim', 'DFS_parallel'], default='DFS')
     
     parser.add_argument(
         "-sol", "--solution", 
