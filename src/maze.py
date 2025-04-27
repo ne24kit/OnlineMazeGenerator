@@ -1,6 +1,13 @@
 import random
-from time import strftime
+from time import sleep, strftime
 from .solve import astar
+from threading import Lock
+from concurrent.futures import ThreadPoolExecutor
+import os
+
+
+def clear_console():
+    os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def conv_ind(value):
@@ -51,13 +58,87 @@ def alg_DFS(maze_cls):
             cell = stack.pop()
 
 
+def log_maze_to_file(maze_cls, step_name, file_name="maze_log.txt"):
+    with open(file_name, "a") as file:
+        file.write(f"Step: {step_name}\n")
+        formatted_maze = maze_cls.get_pretty_maze()  # Получаем красиво отформатированный лабиринт
+        for row in formatted_maze:
+            file.write(row + "\n")
+        file.write("\n" + "-" * 40 + "\n")
+
+
+def agent(seed_x, seed_y, maze_cls, step_name, destroyed_walls):
+    stack = []
+    cell = maze_cls.cells[seed_y][seed_x]
+
+    with cell.lock:
+        if not cell.visited:
+            cell.visited = True
+            stack.append(cell)
+
+    while stack:
+        current = stack[-1]
+        next_cell = maze_cls.get_neighbor(current.x, current.y)
+        if next_cell:
+            with next_cell.lock:
+                if not next_cell.visited:
+                    next_cell.visited = True
+                    maze_cls.maze[next_cell.y + current.y + 1][next_cell.x + current.x + 1] = 0
+                    
+                    # Определяем координаты стены между текущей и следующей клеткой
+                    if current.x == next_cell.x:
+                        wall = (min(current.y, next_cell.y), current.x, 'v')
+                    else:
+                        wall = (current.y, min(current.x, next_cell.x), 'h')
+
+                    # Проверяем, разрушалась ли эта стена ранее
+                    if wall not in destroyed_walls:
+                        # Если не разрушалась, добавляем её в множество
+                        destroyed_walls.add(wall)
+                    else:
+                        # Восстанавливаем стену, если она была разрушена ранее
+                        maze_cls.maze[next_cell.y + current.y + 1][next_cell.x + current.x + 1] = 1
+                        stack.pop() 
+                        continue
+                    
+                    stack.append(next_cell)
+                else:
+                    stack.pop()
+        else:
+            stack.pop() 
+
+        # log_maze_to_file(maze_cls, f"{step_name}_step_{len(stack)}")
+
+
+def alg_DFS_parallel(maze_cls, num_agents=8):
+    seeds = []
+    destroyed_walls = set()  # Множество для отслеживания разрушенных стен
+    
+    # Выбираем стартовые точки
+    for _ in range(num_agents):
+        while True:
+            x = random.randint(0, maze_cls.width - 1)
+            y = random.randint(0, maze_cls.height - 1)
+            if not maze_cls.cells[y][x].visited:
+                seeds.append((x, y))
+                break
+
+    with ThreadPoolExecutor(max_workers=num_agents) as executor:
+        for i, (x, y) in enumerate(seeds):
+            # Каждый агент будет выполнять свою задачу с уникальным именем шага
+            executor.submit(agent, x, y, maze_cls, f"agent_{i + 1}", destroyed_walls)
+
+
+
 class Cell:
     def __init__(self, x, y):
         self.x = x
         self.y = y
         self.visited = False
+        self.lock = Lock()
 
-        
+
+
 class Maze:
     def __init__(self, algorithm, size, run_alg=True):
         self.width, self.height = size
@@ -70,11 +151,12 @@ class Maze:
         if run_alg:
             algorithm(self)
 
-    
+
     def set_zeros(self):
         for j in range(conv_ind(self.height)):
             for i in range(conv_ind(self.width)):
                 self.maze[j][i] = 0
+
 
     def get_random_cell(self):
         while self.maze[y := conv_ind(random.randint(1, self.height - 1))]\
@@ -84,10 +166,10 @@ class Maze:
         self.maze[y][x] = -1
         return x, y
     
+
     def set_elems(self, elems, type):
         for i, j in elems:
             self.maze[j][i] = type
-
 
 
     def get_elems(self, type):
@@ -99,7 +181,6 @@ class Maze:
         return res
 
 
-    
     def get_walls(self, cell):
         walls = []
         if cell.x > 0 and self.maze[conv_ind(cell.y)][conv_ind(cell.x) - 1]:
@@ -164,7 +245,31 @@ class Maze:
                 else:
                     self.maze[i][j] = '   '
 
+                    
+    def get_pretty_maze(self):
+        formatted_maze = []
+        for i in range(conv_ind(self.height)):
+            row = ""
+            for j in range(conv_ind(self.width)):
 
+                if (i + j) % 2 == 0 and self.maze[i][j] == 1:
+                    row += "+"
+                elif j % 2 and self.maze[i][j] == 1:
+                    row += "---"
+                elif i % 2 and self.maze[i][j] == 1:
+                    row += "|"
+                elif j % 2 == 0 and self.maze[i][j] == 2:
+                    row += "@"
+                elif j % 2 != 0 and self.maze[i][j] == 2:
+                    row += "@@@"
+                elif j % 2 == 0:
+                    row += " "
+                else:
+                    row += "   "
+            formatted_maze.append(row)
+        return formatted_maze
+
+        
     @classmethod        
     def upload(cls, path, algorithm):
         lines = []
