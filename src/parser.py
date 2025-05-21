@@ -2,7 +2,7 @@ import argparse
 from .game import start_game
 from .network_utils import start_client, start_server 
 from .maze import start_generator, alg_DFS, alg_Prim, alg_DFS_parallel
-
+import time 
 class RangeError(Exception):
     pass
 
@@ -41,7 +41,8 @@ def play_game(args):
     print("Start game")
     start_game(args.algorithm, args.size[0], args.size[1],
                    args.filename, args.solution, 
-                   args.players, args.bonuses, args.velocity)
+                   args.players, args.bonuses, 
+                   args.velocity, args.handcontrol)
         
 @define_alg
 def start_game_on_server(args):
@@ -58,6 +59,7 @@ def play_online_game(args):
 @define_alg
 def generator(args):
     print("Start generator")
+    
     start_generator(args.algorithm, args.size[0], args.size[1], 
                     args.solution, args.filename, 
                     args.save_maze)
@@ -108,6 +110,12 @@ def parse_game_settings(parser, is_online_game=False):
         help="Player speed",
         type=int, choices=[2, 3, 4, 5],
         default=2)
+    if not is_online_game:
+        parser.add_argument(
+            "-hc", "--handcontrol", 
+            help="Control the player with hand gestures: ← ↑ → ↓\n",
+            action='store_true', default=False)
+    
 
 
 def parser_args():

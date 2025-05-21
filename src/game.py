@@ -1,7 +1,10 @@
 import pygame
 from pathlib import PurePath
 from time import time
+
+from .hand_controller import HandController
 from .maze import Maze, Cell, conv_ind
+from threading import Thread
 
 
 class Globals():
@@ -148,10 +151,11 @@ class MazeWithGraphics(Maze):
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, num=0, speed=2):
+    def __init__(self, num=0, speed=2, controller=None):
         super().__init__() 
         self.num = num
         self.speed = speed
+        self.controller = controller
         path_blue = PurePath('images', "Player_blue.png")
         path_red = PurePath('images', "Player_red.png")
         self.image = pygame.image.load(path_blue)
@@ -168,22 +172,35 @@ class Player(pygame.sprite.Sprite):
         self.speedx = 0
         self.speedy = 0
         old_x, old_y = self.rect.topleft
-        
-        keystate = pygame.key.get_pressed()
         keys = {'left':    (pygame.K_LEFT,  pygame.K_a),
                 'right':   (pygame.K_RIGHT, pygame.K_d),
                 'down':    (pygame.K_DOWN,  pygame.K_s),
                 'up':      (pygame.K_UP,    pygame.K_w),
                 'destroy': (pygame.K_RSHIFT, pygame.K_LSHIFT)}
+        keystate = pygame.key.get_pressed()
+        if self.controller is None or self.num == 1 or self.controller.running == False:
 
-        if keystate[keys['left'][self.num]]:
-            self.speedx = -self.speed
-        if keystate[keys['right'][self.num]]:
-            self.speedx = self.speed
-        if keystate[keys['down'][self.num]]:
-            self.speedy = self.speed
-        if keystate[keys['up'][self.num]]:
-            self.speedy = -self.speed
+            if keystate[keys['left'][self.num]]:
+                self.speedx = -self.speed
+            if keystate[keys['right'][self.num]]:
+                self.speedx = self.speed
+            if keystate[keys['down'][self.num]]:
+                self.speedy = self.speed
+            if keystate[keys['up'][self.num]]:
+                self.speedy = -self.speed
+        else:
+            match self.controller.direction:
+                case 'left':
+                    self.speedx = -self.speed
+                case 'right':
+                    self.speedx = self.speed
+                case 'down':
+                    self.speedy = self.speed
+                case 'up':
+                    self.speedy = -self.speed
+                case None:
+                    self.speedx = 0
+                    self.speedy = 0
 
         self.rect.x += self.speedx
         self.rect.y += self.speedy
@@ -210,8 +227,9 @@ class Player(pygame.sprite.Sprite):
                 
         if (self.rect.colliderect(end_cell.rect) and 
                 not Globals.END_GAME_TIME[self.num]):
-            
             Globals.END_GAME_TIME[self.num] = time()
+            if self.controller is not None:
+                self.controller.stop()
 
         
             
@@ -220,7 +238,7 @@ class Player(pygame.sprite.Sprite):
         surface.blit(self.image, self.rect)
 
 
-def print_winner(start_time, players_count):
+def print_winner(start_time, players_count, controller):
     if Globals.END_GAME_TIME[0] and Globals.END_GAME_TIME[1]: 
         
         print("BLUE TIME: ", end='')
@@ -235,14 +253,15 @@ def print_winner(start_time, players_count):
                 print('RED')
             else:
                 print('BLUE')
-                
+        if controller is not None:
+            controller.stop()
         pygame.quit()  
         quit()
     
 
 
 def start_game(alg, width, height, filename,
-               solution, players_count, bonuses, speed):
+               solution, players_count, bonuses, speed, handcontrol):
     pygame.init()
 
     if filename:
@@ -279,12 +298,18 @@ def start_game(alg, width, height, filename,
                                             *bonuse_speed_up, 
                                             *bonuse_speed_down)
     
-    player_0 = Player(0, speed=speed)
+    if handcontrol:
+        controller = HandController()
+        controller.start()
+    else:
+        controller = None
+
+    player_0 = Player(0, speed, controller)
     group_players = pygame.sprite.Group()
     group_players.add(player_0)
 
     if players_count == 2:
-        player_1 = Player(1, speed=speed)
+        player_1 = Player(1, speed, None)
         group_players.add(player_1)
         Globals.END_GAME_TIME[1] = False
 
@@ -294,9 +319,11 @@ def start_game(alg, width, height, filename,
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 print("You couldn't solve it!")
+                if controller is not None:
+                    controller.stop()
                 pygame.quit()  
                 quit()
-            print_winner(start_time, players_count)
+            print_winner(start_time, players_count, controller)
 
         walls_sprites_list.update() 
         solution_sprites_list.update()
